@@ -41,6 +41,16 @@ public class DependencyParseAnnotator extends SentenceAnnotator {
    */
   private final GrammaticalStructure.Extras extraDependencies;
 
+  /**
+   * Stop sentences larger than this length
+   */
+  private final int maxSentenceLength;
+
+  /**
+   * Default is negative for base value
+   */
+  private static final long DEFAULT_MAX_SENTENCE_LENGTH= -1;
+
   public DependencyParseAnnotator() {
     this(new Properties());
   }
@@ -51,6 +61,7 @@ public class DependencyParseAnnotator extends SentenceAnnotator {
 
     nThreads = PropertiesUtils.getInt(properties, "testThreads", DEFAULT_NTHREADS);
     maxTime = PropertiesUtils.getLong(properties, "sentenceTimeout", DEFAULT_MAXTIME);
+    maxSentenceLength = PropertiesUtils.getInt(properties, "maxSentenceLength", DEFAULT_MAX_SENTENCE_LENGTH);
     extraDependencies = MetaClass.cast(properties.getProperty("extradependencies", "NONE"), GrammaticalStructure.Extras.class);
   }
 
@@ -66,18 +77,22 @@ public class DependencyParseAnnotator extends SentenceAnnotator {
 
   @Override
   protected void doOneSentence(Annotation annotation, CoreMap sentence) {
-    GrammaticalStructure gs = parser.predict(sentence);
 
-    SemanticGraph deps = SemanticGraphFactory.makeFromTree(gs, SemanticGraphFactory.Mode.COLLAPSED, extraDependencies, true, null),
-                  uncollapsedDeps = SemanticGraphFactory.makeFromTree(gs, SemanticGraphFactory.Mode.BASIC, extraDependencies, true, null),
-                  ccDeps = SemanticGraphFactory.makeFromTree(gs, SemanticGraphFactory.Mode.CCPROCESSED, extraDependencies, true, null);
+    final List<CoreLabel> words = sentence.get(CoreAnnotations.TokensAnnotation.class);
 
-    sentence.set(SemanticGraphCoreAnnotations.CollapsedDependenciesAnnotation.class, deps);
-    sentence.set(SemanticGraphCoreAnnotations.BasicDependenciesAnnotation.class, uncollapsedDeps);
-    sentence.set(SemanticGraphCoreAnnotations.CollapsedCCProcessedDependenciesAnnotation.class, ccDeps);
+    if(maxSentenceLength <= 0 || words.size() <= maxSentenceLength){
+      GrammaticalStructure gs = parser.predict(sentence);
 
+      SemanticGraph deps = SemanticGraphFactory.makeFromTree(gs, SemanticGraphFactory.Mode.COLLAPSED, extraDependencies, true, null),
+                    uncollapsedDeps = SemanticGraphFactory.makeFromTree(gs, SemanticGraphFactory.Mode.BASIC, extraDependencies, true, null),
+                    ccDeps = SemanticGraphFactory.makeFromTree(gs, SemanticGraphFactory.Mode.CCPROCESSED, extraDependencies, true, null);
 
-
+      sentence.set(SemanticGraphCoreAnnotations.CollapsedDependenciesAnnotation.class, deps);
+      sentence.set(SemanticGraphCoreAnnotations.BasicDependenciesAnnotation.class, uncollapsedDeps);
+      sentence.set(SemanticGraphCoreAnnotations.CollapsedCCProcessedDependenciesAnnotation.class, ccDeps);
+    }else{
+      doOneFailedSentence(annotation, sentence);
+    }
   }
 
   @Override
